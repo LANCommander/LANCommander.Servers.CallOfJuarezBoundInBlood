@@ -1,0 +1,32 @@
+#!/bin/sh
+# Start the Call of Juarez: Bound in Blood dedicated server (START_EXE).
+#
+# Runs CoJ2Game_x86_ds.exe under Wine with Xvfb. It takes no arguments of its own: everything
+# comes from CoJ2\DedicatedServerSettings.ini, which the configure hook fills in. The server is a
+# GUI program with no console output, so its log (CoJ2/out/logs/crash.log, recreated on every
+# start) is followed to stdout, minus the client-side asset warnings it prints on every map load.
+# Any START_ARGS are appended.
+set -e
+
+root="${SERVER_ROOT:-/config/Merged}"
+cd "$root"
+
+if [ ! -f CoJ2Game_x86_ds.exe ]; then
+    echo "CoJ2Game_x86_ds.exe not found in $root. Put CoJ_BiB_DedicatedServer_setup.exe in /config." >&2
+    exit 1
+fi
+
+printf 'Starting: CoJ2Game_x86_ds.exe %s\n' "$*"
+printf 'Game port %s/udp\n' "${COJBIB_PORT:-27632}"
+
+log=CoJ2/out/logs/crash.log
+mkdir -p CoJ2/out/logs
+rm -f "$log"
+tail -n +1 -F "$log" 2>/dev/null | grep --line-buffered -v -E \
+    'gather it|not in pack|SetTexture|GetProperFont|ScrollBarGroup|Cannot read definition|PPMANAGER|CPPManager|cannot find texture|ANIM ASSERTION|activated second time|creator_level==NULL|not free|ResourceLoadingRuntime|Free resource loading|\[Road\]|Creating road|GetStreamDuration|already exists|cannot find material|LoadCompiled|Unable to load lightmaps|^\s*$' &
+
+# Use the native d3dx9_39.dll the install hook put next to the exe; Wine falls back to its builtin
+# if it isn't there
+export WINEDLLOVERRIDES="${WINEDLLOVERRIDES:+$WINEDLLOVERRIDES;}d3dx9_39=n,b"
+export WINE_XVFB="${WINE_XVFB:-true}"
+exec wine-run CoJ2Game_x86_ds.exe "$@"
